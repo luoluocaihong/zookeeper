@@ -324,6 +324,9 @@ document.write("Last Published: " + document.lastModified);
 <li>
 <a href="#sc_filemanagement">File Management</a>
 </li>
+<li>
+<a href="#Recovery+-+TxnLogToolkit">Recovery - TxnLogToolkit</a>
+</li>
 </ul>
 </li>
 <li>
@@ -504,8 +507,8 @@ document.write("Last Published: " + document.lastModified);
         is no full support.</p>
 <a name="sc_requiredSoftware"></a>
 <h4>Required Software </h4>
-<p>ZooKeeper runs in Java, release 1.7 or greater (JDK 7 or
-        greater, FreeBSD support requires openjdk7).  It runs as an
+<p>ZooKeeper runs in Java, release 1.8 or greater (JDK 8 or
+        greater, FreeBSD support requires openjdk8).  It runs as an
         <em>ensemble</em> of ZooKeeper servers. Three
         ZooKeeper servers is the minimum recommended size for an
         ensemble, and we also recommend that they run on separate
@@ -635,7 +638,9 @@ server.3=zoo3:2888:3888</pre>
           consists of a single line containing only the text of that machine's
           id. So <span class="codefrag filename">myid</span> of server 1 would contain the text
           "1" and nothing else. The id must be unique within the
-          ensemble and should have a value between 1 and 255.</p>
+          ensemble and should have a value between 1 and 255. <strong>IMPORTANT:</strong> if you
+          enable extended features such as TTL Nodes (see below) the id must be
+          between 1 and 254 due to internal limitations.</p>
         
 </li>
 
@@ -1340,6 +1345,37 @@ server.3=zoo3:2888:3888</pre>
               by default like the participants. This reduces the recovery time
               of the observers on restart. Set to "false" to disable this
               feature. Default is "true"</p>
+</dd>
+
+          
+<dt>
+<term>zookeeper.extendedTypesEnabled</term>
+</dt>
+<dd>
+<p>(Java system property only: <strong>zookeeper.extendedTypesEnabled</strong>)</p>
+<p>
+<strong>New in 3.5.4, 3.6.0:</strong> Define to "true" to enable
+              extended features such as the creation of <a href="zookeeperProgrammers.html#TTL+Nodes">TTL Nodes</a>.
+              They are disabled by default. IMPORTANT: when enabled server IDs must
+              be less than 255 due to internal limitations.
+              </p>
+</dd>
+
+          
+<dt>
+<term>zookeeper.emulate353TTLNodes</term>
+</dt>
+<dd>
+<p>(Java system property only: <strong>zookeeper.emulate353TTLNodes</strong>)</p>
+<p>
+<strong>New in 3.5.4, 3.6.0:</strong> Due to
+                <a href="https://issues.apache.org/jira/browse/ZOOKEEPER-2901">ZOOKEEPER-2901</a> TTL nodes
+                created in version 3.5.3 are not supported in 3.5.4/3.6.0. However, a workaround is provided via the
+                zookeeper.emulate353TTLNodes system property. If you used TTL nodes in ZooKeeper 3.5.3 and need to maintain
+                compatibility set <strong>zookeeper.emulate353TTLNodes</strong> to "true" in addition to
+                <strong>zookeeper.extendedTypesEnabled</strong>. NOTE: due to the bug, server IDs
+                must be 127 or less. Additionally, the maximum support TTL value is 1099511627775 which is smaller
+                than what was allowed in 3.5.3 (1152921504606846975)</p>
 </dd>
 
         
@@ -2213,6 +2249,7 @@ server.3=zoo3:2888:3888</pre>
               zk_min_latency  0
               zk_packets_received 70
               zk_packets_sent 69
+              zk_num_alive_connections	1
               zk_outstanding_requests 0
               zk_server_state leader
               zk_znode_count   4
@@ -2224,6 +2261,9 @@ server.3=zoo3:2888:3888</pre>
               zk_pending_syncs    0               - only exposed by the Leader
               zk_open_file_descriptor_count 23    - only available on Unix platforms
               zk_max_file_descriptor_count 1024   - only available on Unix platforms
+              zk_last_proposal_size 23
+              zk_min_proposal_size 23
+              zk_max_proposal_size 64
               </pre>
 <p>The output is compatible with java properties format and the content 
               may change over time (new keys added). Your scripts should expect changes.</p>
@@ -2487,7 +2527,8 @@ server.3=zoo3:2888:3888</pre>
 <p>Using older log and snapshot files, you can look at the previous
         state of ZooKeeper servers and even restore that state. The
         LogFormatter class allows an administrator to look at the transactions
-        in a log.</p>
+        in a log. The LogChopper class allows an administrator to create
+         truncated versions of transaction logs.</p>
 <p>The ZooKeeper server creates snapshot and log files, but
         never deletes them. The retention policy of the data and log
         files is implemented outside of the ZooKeeper server. The
@@ -2513,6 +2554,65 @@ server.3=zoo3:2888:3888</pre>
         
 </div>
 </div>
+<a name="Recovery+-+TxnLogToolkit"></a>
+<h4>Recovery - TxnLogToolkit</h4>
+<p>TxnLogToolkit is a command line tool shipped with ZooKeeper which
+          is capable of recovering transaction log entries with broken CRC.</p>
+<p>Running it without any command line parameters or with the "-h,--help"
+          argument, it outputs the following help page:</p>
+<pre class="code">
+          $ bin/zkTxnLogToolkit.sh
+
+          usage: TxnLogToolkit [-dhrv] txn_log_file_name
+          -d,--dump      Dump mode. Dump all entries of the log file. (this is the default)
+          -h,--help      Print help message
+          -r,--recover   Recovery mode. Re-calculate CRC for broken entries.
+          -v,--verbose   Be verbose in recovery mode: print all entries, not just fixed ones.
+          -y,--yes       Non-interactive mode: repair all CRC errors without asking
+        </pre>
+<p>The default behaviour is safe: it dumps the entries of the given
+        transaction log file to the screen: (same as using '-d,--dump' parameter)</p>
+<pre class="code">
+          $ bin/zkTxnLogToolkit.sh log.100000001
+          ZooKeeper Transactional Log File with dbid 0 txnlog format version 2
+          4/5/18 2:15:58 PM CEST session 0x16295bafcc40000 cxid 0x0 zxid 0x100000001 createSession 30000
+          <strong>CRC ERROR - 4/5/18 2:16:05 PM CEST session 0x16295bafcc40000 cxid 0x1 zxid 0x100000002 closeSession null</strong>
+          4/5/18 2:16:05 PM CEST session 0x16295bafcc40000 cxid 0x1 zxid 0x100000002 closeSession null
+          4/5/18 2:16:12 PM CEST session 0x26295bafcc90000 cxid 0x0 zxid 0x100000003 createSession 30000
+          4/5/18 2:17:34 PM CEST session 0x26295bafcc90000 cxid 0x0 zxid 0x200000001 closeSession null
+          4/5/18 2:17:34 PM CEST session 0x16295bd23720000 cxid 0x0 zxid 0x200000002 createSession 30000
+          4/5/18 2:18:02 PM CEST session 0x16295bd23720000 cxid 0x2 zxid 0x200000003 create '/andor,#626262,v{s{31,s{'world,'anyone}}},F,1
+          EOF reached after 6 txns.
+        </pre>
+<p>There's a CRC error in the 2nd entry of the above transaction log file. In <strong>dump</strong>
+          mode, the toolkit only prints this information to the screen without touching the original file. In
+          <strong>recovery</strong> mode (-r,--recover flag) the original file still remains
+          untouched and all transactions will be copied over to a new txn log file with ".fixed" suffix. It recalculates
+          CRC values and copies the calculated value, if it doesn't match the original txn entry.
+          By default, the tool works interactively: it asks for confirmation whenever CRC error encountered.</p>
+<pre class="code">
+          $ bin/zkTxnLogToolkit.sh -r log.100000001
+          ZooKeeper Transactional Log File with dbid 0 txnlog format version 2
+          CRC ERROR - 4/5/18 2:16:05 PM CEST session 0x16295bafcc40000 cxid 0x1 zxid 0x100000002 closeSession null
+          Would you like to fix it (Yes/No/Abort) ?
+        </pre>
+<p>Answering <strong>Yes</strong> means the newly calculated CRC value will be outputted
+          to the new file. <strong>No</strong> means that the original CRC value will be copied over.
+          <strong>Abort</strong> will abort the entire operation and exits.
+          (In this case the ".fixed" will not be deleted and left in a half-complete state: contains only entries which
+          have already been processed or only the header if the operation was aborted at the first entry.)</p>
+<pre class="code">
+          $ bin/zkTxnLogToolkit.sh -r log.100000001
+          ZooKeeper Transactional Log File with dbid 0 txnlog format version 2
+          CRC ERROR - 4/5/18 2:16:05 PM CEST session 0x16295bafcc40000 cxid 0x1 zxid 0x100000002 closeSession null
+          Would you like to fix it (Yes/No/Abort) ? y
+          EOF reached after 6 txns.
+          Recovery file log.100000001.fixed has been written with 1 fixed CRC error(s)
+        </pre>
+<p>The default behaviour of recovery is to be silent: only entries with CRC error get printed to the screen.
+          One can turn on verbose mode with the -v,--verbose parameter to see all records.
+          Interactive mode can be turned off with the -y,--yes parameter. In this case all CRC errors will be fixed
+          in the new transaction file.</p>
 <a name="sc_commonProblems"></a>
 <h3 class="h4">Things to Avoid</h3>
 <p>Here are some common problems you can avoid by configuring

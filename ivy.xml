@@ -35,6 +35,7 @@
     <conf name="javacc" visibility="private"/>
     <conf name="releaseaudit" visibility="private" description="Artifacts required for releaseaudit target"/>
     <conf name="owasp" visibility="private" description="Artifacts required for owasp target"/>
+    <conf name="clover" visibility="private" description="Artifacts required for clover target"/>
   </configurations>
 
   <publications>
@@ -62,6 +63,9 @@
       <artifact name="netty" type="jar" conf="default"/>
     </dependency>
 
+    <dependency org="com.googlecode.json-simple" name="json-simple" rev="${json.version}" >
+      <exclude org="junit" module="junit"/>
+    </dependency>
     <dependency org="junit" name="junit" rev="${junit.version}" conf="test->default"/>
 	<dependency org="org.mockito" name="mockito-all" rev="${mockito.version}"
                conf="test->default"/>
@@ -73,6 +77,9 @@
     <!-- force the tests to pull the latest commons-collections jar -->
     <dependency org="commons-collections" name="commons-collections" 
                 rev="${commons-collections.version}" conf="test->default"/>
+
+    <dependency org="org.bouncycastle" name="bcprov-jdk15on" rev="${bouncycastle.version}" conf="test->default"/>
+    <dependency org="org.bouncycastle" name="bcpkix-jdk15on" rev="${bouncycastle.version}" conf="test->default"/>
 
     <dependency org="jdiff" name="jdiff" rev="${jdiff.version}"
                 conf="jdiff->default"/>
@@ -130,8 +137,16 @@
                 conf="optional->default"/>
       <dependency org="org.eclipse.jetty" name="jetty-servlet" rev="${jetty.version}"
                   conf="optional->default"/>
-    <dependency org="org.codehaus.jackson" name="jackson-mapper-asl"
-                rev="${jackson-mapper-asl.version}" conf="optional->default"/>
+    <dependency org="com.fasterxml.jackson.core" name="jackson-databind"
+                rev="${jackson.version}" conf="optional->default"/>
+
+    <dependency org="org.openclover" name="clover" rev="${clover.version}" conf="clover->default"/>
+
+    <dependency org="org.hamcrest" name="hamcrest-all" rev="${hamcrest.version}"
+                  conf="test->default" />
+
+    <dependency org="org.openjdk.jmh" name="jmh-core" rev="${jmh.version}" conf="test->default"/>
+    <dependency org="org.openjdk.jmh" name="jmh-generator-annprocess" rev="${jmh.version}" conf="test->default"/>
 
     <conflict manager="strict"/>
 
